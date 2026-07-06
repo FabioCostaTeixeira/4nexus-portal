@@ -183,6 +183,7 @@ model AiDraft {
   generatedSummary         String?
   generatedTags            String? // CSV
   generatedMetaDescription String?
+  reviewSummary            String?
   coverImageUrl            String?
   origin                   AiDraftOrigin @default(ADMIN_PANEL)
   status                   AiDraftStatus @default(GENERATED)

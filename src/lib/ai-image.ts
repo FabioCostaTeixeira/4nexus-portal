@@ -41,15 +41,15 @@ async function listPngsRecursive(dir: string): Promise<Map<string, number>> {
   return result;
 }
 
-/** Gera a imagem de capa via Codex CLI local. Retorna a URL pública salva em /uploads, ou null se falhar. */
-export async function generateCoverImage(prompt: string): Promise<string | null> {
+/** Gera uma imagem via Codex CLI local a partir de um prompt livre. Retorna a URL pública salva em /uploads, ou null se falhar. */
+async function generateImageViaCodex(prompt: string, filenameHint: string): Promise<string | null> {
   try {
     const before = await listPngsRecursive(CODEX_IMAGES_DIR);
 
     const fullPrompt = `Generate an image: fotografia jornalística realista, sem texto sobreposto, formato paisagem, sobre: ${prompt}. Save the PNG.`;
 
     // cwd isolado: evita que o Codex tente escrever/ler no repo do portal.
-    const cwd = await mkdtemp(path.join(os.tmpdir(), "codex-cover-"));
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "codex-img-"));
 
     await execFileAsync(CODEX_BIN, ["exec", "--skip-git-repo-check", fullPrompt], {
       cwd,
@@ -65,11 +65,16 @@ export async function generateCoverImage(prompt: string): Promise<string | null>
     const [chosenPath] = newFiles[0];
 
     const buffer = await readFile(chosenPath);
-    return await saveUploadBuffer(buffer, "capa-materia.png");
+    return await saveUploadBuffer(buffer, filenameHint);
   } catch (e) {
     console.error("Falha ao gerar imagem via Codex CLI:", e instanceof Error ? e.message : e);
     return null;
   }
+}
+
+/** Gera a imagem de capa via Codex CLI local. Retorna a URL pública salva em /uploads, ou null se falhar. */
+export async function generateCoverImage(prompt: string): Promise<string | null> {
+  return generateImageViaCodex(prompt, "capa-materia.png");
 }
 
 export function pexelsConfigured(): boolean {
@@ -106,4 +111,25 @@ export async function generateOrFetchCoverImage(prompt: string): Promise<string 
   const generated = await generateCoverImage(prompt);
   if (generated) return generated;
   return fetchStockImageFallback(prompt);
+}
+
+/**
+ * Gera uma imagem para cada marcador [IMAGEM_N] presente no content e
+ * substitui o marcador pelo markdown de imagem correspondente. Marcadores
+ * cuja geração falhar são removidos do texto (sem quebrar o layout).
+ */
+export async function fillImagePlaceholders(
+  content: string,
+  placeholders: string[],
+  articleTitle: string
+): Promise<string> {
+  let result = content;
+  for (const placeholder of placeholders) {
+    const prompt = `${articleTitle} — cena complementar relacionada ao trecho da matéria próximo a este ponto`;
+    const url =
+      (await generateImageViaCodex(prompt, "imagem-materia.png")) ??
+      (await fetchStockImageFallback(articleTitle));
+    result = result.replace(placeholder, url ? `![${articleTitle}](${url})` : "");
+  }
+  return result;
 }

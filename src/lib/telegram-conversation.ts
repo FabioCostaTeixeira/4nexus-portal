@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
-import { classifyPauta, generateDraft } from "@/lib/ai";
-import { generateOrFetchCoverImage } from "@/lib/ai-image";
+import { classifyPauta, generateDraft, generateReviewSummary, detectExtraImageCount } from "@/lib/ai";
+import { generateOrFetchCoverImage, fillImagePlaceholders } from "@/lib/ai-image";
 import { createPost, publishPostNow, schedulePost, resolveTelegramActor } from "@/lib/posts-service";
 import {
   sendMessage,
@@ -115,19 +115,29 @@ async function handlePautaSubmission(chatId: string, pauta: string) {
   await generateAndPresentDraft(chatId, pauta, matched.id);
 }
 
+const TELEGRAM_MESSAGE_LIMIT = 4096;
+
 async function generateAndPresentDraft(chatId: string, pauta: string, categoryId: string) {
   try {
-    const draft = await generateDraft(pauta);
+    const extraImageCount = await detectExtraImageCount(pauta);
+    const draft = await generateDraft(pauta, extraImageCount);
+
     const coverImageUrl = await generateOrFetchCoverImage(`${draft.title}. ${draft.summary}`);
+    const contentWithImages = draft.imagePlaceholders.length
+      ? await fillImagePlaceholders(draft.content, draft.imagePlaceholders, draft.title)
+      : draft.content;
+
+    const reviewSummary = await generateReviewSummary({ ...draft, content: contentWithImages });
 
     const aiDraft = await prisma.aiDraft.create({
       data: {
         prompt: pauta,
         generatedTitle: draft.title,
-        generatedContent: draft.content,
+        generatedContent: contentWithImages,
         generatedSummary: draft.summary,
         generatedTags: draft.tags.join(", "),
         generatedMetaDescription: draft.metaDescription,
+        reviewSummary,
         coverImageUrl,
         origin: "TELEGRAM",
         status: "GENERATED",
@@ -139,7 +149,6 @@ async function generateAndPresentDraft(chatId: string, pauta: string, categoryId
       data: { state: "AWAITING_APPROVAL", aiDraftId: aiDraft.id, categoryId },
     });
 
-    const caption = `*${draft.title}*\n\n${draft.summary}\n\n_Tags: ${draft.tags.join(", ")}_`;
     const keyboard = buildInlineKeyboard([
       [
         { text: "✅ Aprovar", data: `approve:${aiDraft.id}` },
@@ -147,12 +156,17 @@ async function generateAndPresentDraft(chatId: string, pauta: string, categoryId
       ],
     ]);
 
+    // Capa enviada primeiro (sem os botões ainda), depois o resumo expandido
+    // com os botões — o Telegram limita caption de foto a 1024 caracteres,
+    // insuficiente para um resumo de 50+ linhas.
     if (coverImageUrl) {
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
-      await sendPhoto(chatId, `${siteUrl}${coverImageUrl}`, { caption, replyMarkup: keyboard });
-    } else {
-      await sendMessage(chatId, `${caption}\n\n_(sem imagem de capa)_`, { replyMarkup: keyboard });
+      await sendPhoto(chatId, `${siteUrl}${coverImageUrl}`, { caption: `*${draft.title}*` });
     }
+
+    const header = `*${draft.title}*\n_Tags: ${draft.tags.join(", ")}_\n\n`;
+    const body = `${header}${reviewSummary}`.slice(0, TELEGRAM_MESSAGE_LIMIT - 20);
+    await sendMessage(chatId, body, { replyMarkup: keyboard });
   } catch (e) {
     await resetConversation(chatId);
     await sendMessage(
