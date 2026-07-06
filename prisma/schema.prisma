@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+  REDATOR
+  MODERADOR
+}
+
+enum PostStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  ARCHIVED
+  REJECTED
+}
+
+enum SourceType {
+  HUMAN
+  AI_ASSISTED
+}
+
+enum CommentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AiDraftStatus {
+  GENERATED
+  USED
+  DISCARDED
+}
+
+model User {
+  id                String    @id @default(cuid())
+  name              String
+  email             String    @unique
+  passwordHash      String
+  role              UserRole  @default(REDATOR)
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+  author            Author?
+  approvedPosts     Post[]    @relation("PostApprover")
+  moderatedComments Comment[] @relation("CommentModerator")
+  aiDrafts          AiDraft[]
+
+  @@index([role])
+}
+
+model Author {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  bio       String?
+  avatarUrl String?
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id])
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+  posts     Post[]
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  posts       Post[]
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  updatedAt DateTime  @updatedAt @db.Timestamptz
+  posts     PostTag[]
+}
+
+model Post {
+  id              String     @id @default(cuid())
+  title           String
+  slug            String     @unique
+  summary         String?
+  content         String // markdown
+  coverImageUrl   String?
+  authorId        String
+  author          Author     @relation(fields: [authorId], references: [id])
+  categoryId      String
+  category        Category   @relation(fields: [categoryId], references: [id])
+  status          PostStatus @default(DRAFT)
+  sourceType      SourceType @default(HUMAN)
+  generatedByAi   Boolean    @default(false)
+  approvedById    String?
+  approvedBy      User?      @relation("PostApprover", fields: [approvedById], references: [id])
+  publishedAt     DateTime?  @db.Timestamptz
+  metaTitle       String?
+  metaDescription String?
+  readingTime     Int?
+  viewCount       Int        @default(0)
+  featured        Boolean    @default(false)
+  createdAt       DateTime   @default(now()) @db.Timestamptz
+  updatedAt       DateTime   @updatedAt @db.Timestamptz
+  tags            PostTag[]
+  comments        Comment[]
+
+  // Coluna gerada tsvector + índice GIN — criados via SQL na migration
+  // (ver prisma/migrations/*_add_fulltext_search/migration.sql)
+  searchVector Unsupported("tsvector")?
+
+  @@index([status, publishedAt])
+  @@index([categoryId])
+  @@index([authorId])
+  @@index([viewCount])
+}
+
+model PostTag {
+  postId String
+  tagId  String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+}
+
+model Comment {
+  id             String        @id @default(cuid())
+  postId         String
+  post           Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userName       String
+  userEmail      String
+  content        String
+  status         CommentStatus @default(PENDING)
+  createdAt      DateTime      @default(now()) @db.Timestamptz
+  approvedAt     DateTime?     @db.Timestamptz
+  moderatedById  String?
+  moderatedBy    User?         @relation("CommentModerator", fields: [moderatedById], references: [id])
+  rejectedReason String?
+
+  @@index([status])
+  @@index([postId])
+}
+
+model AiDraft {
+  id                       String        @id @default(cuid())
+  prompt                   String
+  generatedTitle           String?
+  generatedContent         String?
+  generatedSummary         String?
+  generatedTags            String? // CSV
+  generatedMetaDescription String?
+  status                   AiDraftStatus @default(GENERATED)
+  reviewedById             String?
+  reviewedBy               User?         @relation(fields: [reviewedById], references: [id])
+  createdAt                DateTime      @default(now()) @db.Timestamptz
+  updatedAt                DateTime      @updatedAt @db.Timestamptz
+}

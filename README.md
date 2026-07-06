@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 4Nexus Notícias — Portal Editorial (MVP)
 
-## Getting Started
+Portal público de notícias + painel administrativo com fluxo editorial, moderação de comentários, apoio de IA e base técnica de SEO.
 
-First, run the development server:
+Stack: **Next.js 16** (App Router) · **React 19** · **Tailwind 4** · **Prisma 6 + PostgreSQL 17** · IA multi-provedor (Groq padrão).
+
+Banco: PostgreSQL 17 dedicado (`nexus_portal`) no servidor srv1, acessado via Tailscale. Enums nativos (`PostStatus`, `UserRole`, etc.), `timestamptz` em todas as datas, índices em campos de filtro frequente, e busca full-text nativa (`tsvector` + índice GIN, dicionário português) na tabela `Post`.
+
+## Rodar localmente
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd portal
+npm install
+# .env já aponta para o Postgres do srv1 (DATABASE_URL)
+npx prisma migrate deploy   # aplica as migrations (schema + full-text search)
+npm run db:seed             # popula com dados de demonstração
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Acessos de demonstração
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Papel | E-mail | Senha |
+|---|---|---|
+| Admin | admin@4nexus.com.br | Admin@4nexus2026 |
+| Editor-chefe | editor@4nexus.com.br | Editor@4nexus2026 |
+| Redator | redator@4nexus.com.br | Redator@4nexus2026 |
+| Moderador | moderador@4nexus.com.br | Moderador@4nexus2026 |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Painel: `http://localhost:3000/admin` (login em `/login`).
 
-## Learn More
+## IA editorial (multi-provedor)
 
-To learn more about Next.js, take a look at the following resources:
+Configure no `.env`:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```env
+AI_PROVIDER=groq          # groq | openai | openrouter | deepseek | anthropic | perplexity
+AI_API_KEY=sua_chave_aqui
+AI_MODEL=                 # vazio = modelo padrão do provedor
+# AI_BASE_URL=            # opcional: endpoint custom (qualquer API compatível com OpenAI)
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Groq: chave gratuita em https://console.groq.com/keys
+- Trocar de provedor = trocar env vars. Zero mudança de código.
+- **Regra editorial**: conteúdo gerado por IA nunca publica direto — redator só envia para aprovação; publicação exige ação de Editor/Admin (validação humana).
 
-## Deploy on Vercel
+## Fluxo editorial
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+Redator cria/edita (rascunho) → envia para aprovação → Editor/Admin aprova e publica
+IA gera rascunho → marcado "com apoio de IA" → revisão humana obrigatória → publicação
+Comentário do leitor → PENDENTE → Moderador aprova/rejeita → aparece no portal
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Status de notícia: Rascunho · Pendente de aprovação · Publicado · Arquivado · Rejeitado.
+
+## SEO incluído
+
+URLs amigáveis (slug), meta title/description por notícia, Open Graph, JSON-LD `NewsArticle`, `sitemap.xml` automático, `robots.txt`, páginas institucionais (Sobre, Contato, Privacidade, Termos, Política editorial), tempo de leitura, autor identificado, datas de publicação/atualização.
+
+## Limitações conhecidas (MVP)
+
+- **Deploy serverless (Vercel)**: o Postgres do srv1 só é acessível via Tailscale — a Vercel não alcança esse IP sem tunnel/proxy. O preview na Vercel usa dados estáticos de exemplo; a operação editorial real roda local (ou de qualquer máquina na tailnet) contra o Postgres do srv1.
+- Upload de imagem: salva em `public/uploads/` no disco local — funciona rodando local, não em serverless.
+- Google Analytics / Search Console: estrutura pronta, ativação na Fase 3 (requer domínio oficial).
+
+## Estrutura
+
+```
+src/app/(public)/   portal público (home, notícia, categoria, autor, tag, busca, institucionais)
+src/app/admin/      painel administrativo (notícias, comentários, categorias, tags, autores, usuários)
+src/app/login/      autenticação (JWT em cookie httpOnly)
+src/app/api/admin/  upload de imagens
+src/lib/            db (Prisma), auth, ai (multi-provedor), utils
+prisma/             schema, migrations, seed
+public/uploads/     imagens (capas, avatares, uploads)
+```

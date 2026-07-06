@@ -1,26 +1,176 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #15191c;
+  --foreground: #f4f4f4;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-sans: var(--font-poppins);
+  --font-display: var(--font-montserrat);
+  --font-mono: ui-monospace, monospace;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Marca 4Nexus — laranja oficial #FF9400 */
+  --color-brand-50: #fff7eb;
+  --color-brand-100: #ffeacc;
+  --color-brand-200: #ffd699;
+  --color-brand-300: #ffc166;
+  --color-brand-400: #ffab33;
+  --color-brand-500: #ff9400;
+  --color-brand-600: #ff9400;
+  --color-brand-700: #e07f00;
+  --color-brand-800: #b86800;
+  --color-brand-900: #8f5100;
+  --color-brand-950: #663a00;
+
+  /* Superfícies dark do site 4nexus.com.br */
+  --color-surface: #21282b;
+  --color-surface-2: #1c2326;
+  --color-surface-3: #171d20;
+  --color-ink: #f4f4f4;
+  --color-ink-muted: #c2c2c2;
+  --color-ink-faint: #8a9296;
+  --color-line: #343d41;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display), Arial, sans-serif;
+}
+
+/* ---------- Animações / efeitos ---------- */
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(36px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideLeft {
+  from { opacity: 0; transform: translateX(-64px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(64px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.86); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0) }
+  50% { transform: translateY(-18px) }
+}
+@keyframes gradShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Estado inicial dos elementos com reveal (JS troca para .revealed) */
+.reveal { opacity: 0; }
+.reveal.revealed { opacity: 1; }
+.reveal.revealed[data-anim="up"] { animation: fadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.reveal.revealed[data-anim="left"] { animation: slideLeft 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.reveal.revealed[data-anim="right"] { animation: slideRight 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.reveal.revealed[data-anim="zoom"] { animation: zoomIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal.revealed { opacity: 1; animation: none !important; }
+  .float-slow, .grad-animate { animation: none !important; }
+}
+
+/* Hero: entrada imediata (sem esperar scroll) */
+.hero-in-1 { animation: slideLeft 0.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.hero-in-2 { animation: slideRight 0.8s 0.15s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.hero-in-3 { animation: fadeUp 0.8s 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.hero-in-4 { animation: zoomIn 0.8s 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+.float-slow { animation: floatSlow 7s ease-in-out infinite; }
+
+.grad-animate {
+  background-size: 200% 200%;
+  animation: gradShift 8s ease infinite;
+}
+
+/* Texto com gradiente laranja */
+.text-grad-brand {
+  background: linear-gradient(92deg, #ff9400, #ffc166 55%, #ff9400);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* Cartão 3D com tilt no hover */
+.tilt-wrap { perspective: 1000px; }
+.tilt-card {
+  transform-style: preserve-3d;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease;
+}
+.tilt-wrap:hover .tilt-card {
+  transform: rotateX(3deg) rotateY(-4deg) translateY(-6px) scale(1.015);
+  box-shadow: 0 22px 45px -18px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 148, 0, 0.28);
+}
+
+/* Scrollbar dark */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #171d20; }
+::-webkit-scrollbar-thumb { background: #343d41; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #ff9400; }
+
+/* ---------- Conteúdo de notícia (Markdown) — dark ---------- */
+.prose-news {
+  line-height: 1.8;
+  font-size: 1.075rem;
+  color: #d7dadc;
+}
+.prose-news h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 2rem 0 0.75rem;
+  color: #f4f4f4;
+}
+.prose-news h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 1.5rem 0 0.5rem;
+  color: #f4f4f4;
+}
+.prose-news p { margin: 1rem 0; }
+.prose-news ul, .prose-news ol { margin: 1rem 0; padding-left: 1.5rem; }
+.prose-news ul { list-style: disc; }
+.prose-news ol { list-style: decimal; }
+.prose-news li { margin: 0.35rem 0; }
+.prose-news a { color: #ffab33; text-decoration: underline; }
+.prose-news strong { font-weight: 700; color: #f4f4f4; }
+.prose-news blockquote {
+  border-left: 4px solid #ff9400;
+  padding-left: 1rem;
+  margin: 1.25rem 0;
+  color: #c2c2c2;
+  font-style: italic;
+}
+.prose-news code {
+  background: #1c2326;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.9em;
+  font-family: var(--font-mono);
+  color: #ffc166;
+}
+.prose-news img { max-width: 100%; border-radius: 0.5rem; margin: 1.25rem 0; }
+
+/* ---------- Área admin permanece clara ---------- */
+.admin-light {
+  background: #f1f5f9;
+  color: #0f172a;
+  font-family: var(--font-sans), Arial, sans-serif;
+}
+.admin-light h1, .admin-light h2, .admin-light h3 {
+  font-family: var(--font-display), Arial, sans-serif;
 }
