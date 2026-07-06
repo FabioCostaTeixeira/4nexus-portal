@@ -15,6 +15,10 @@ const execFileAsync = promisify(execFile);
 
 const CODEX_IMAGES_DIR = path.join(os.homedir(), ".codex", "generated_images");
 const CODEX_TIMEOUT_MS = 120_000; // geração de imagem pode levar 1-2min+
+// O processo do Next em produção (subido via WMI) não herda o PATH interativo
+// do usuário, então o binário "codex" não é resolvido por nome — precisa do
+// caminho absoluto, configurável via env para funcionar em qualquer host.
+const CODEX_BIN = process.env.CODEX_BIN_PATH || "codex";
 
 async function listPngsRecursive(dir: string): Promise<Map<string, number>> {
   const result = new Map<string, number>();
@@ -47,7 +51,7 @@ export async function generateCoverImage(prompt: string): Promise<string | null>
     // cwd isolado: evita que o Codex tente escrever/ler no repo do portal.
     const cwd = await mkdtemp(path.join(os.tmpdir(), "codex-cover-"));
 
-    await execFileAsync("codex", ["exec", "--skip-git-repo-check", fullPrompt], {
+    await execFileAsync(CODEX_BIN, ["exec", "--skip-git-repo-check", fullPrompt], {
       cwd,
       timeout: CODEX_TIMEOUT_MS,
       windowsHide: true,

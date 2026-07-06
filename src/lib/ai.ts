@@ -86,7 +86,11 @@ Responda SOMENTE com JSON válido, sem markdown ao redor, no formato:
 - summary: resumo de 1-2 frases (máx 200 caracteres).
 - content: corpo da notícia em Markdown (400-700 palavras), com subtítulos ##.
 - tags: 3 a 6 tags curtas em minúsculas.
-- metaDescription: meta description SEO, máx 155 caracteres.`;
+- metaDescription: meta description SEO, máx 155 caracteres.
+- NUNCA inclua no content seções como "Imagens:", listas de imagens sugeridas,
+  placeholders de imagem ou referências a figuras/legendas. A imagem de capa é
+  gerada e anexada separadamente pelo sistema — o texto deve ser autocontido,
+  sem mencionar imagens.`;
 
 /** Gera um rascunho completo de notícia a partir de uma pauta. */
 export async function generateDraft(pauta: string): Promise<AiDraftResult> {
