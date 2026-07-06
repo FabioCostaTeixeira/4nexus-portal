@@ -12,5 +12,5 @@ export async function getFormOptions() {
 
 export function allowedStatusesFor(role: SessionUser["role"]): string[] {
   if (role === "REDATOR") return ["DRAFT", "PENDING"];
-  return ["DRAFT", "PENDING", "PUBLISHED", "ARCHIVED", "REJECTED"];
+  return ["DRAFT", "PENDING", "SCHEDULED", "PUBLISHED", "ARCHIVED", "REJECTED"];
 }

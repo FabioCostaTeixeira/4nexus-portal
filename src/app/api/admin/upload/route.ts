@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 import { getSession } from "@/lib/auth";
-import { slugify } from "@/lib/utils";
+import { saveUploadBuffer } from "@/lib/uploads";
 
 const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
@@ -28,16 +26,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Arquivo maior que 5MB." }, { status: 400 });
   }
 
-  const ext = path.extname(file.name) || ".jpg";
-  const base = slugify(path.basename(file.name, ext)) || "imagem";
-  const filename = `${Date.now()}-${base}${ext}`;
-
   try {
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
-    await mkdir(uploadDir, { recursive: true });
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(uploadDir, filename), buffer);
-    return NextResponse.json({ url: `/uploads/${filename}` });
+    const url = await saveUploadBuffer(buffer, file.name);
+    return NextResponse.json({ url });
   } catch {
     return NextResponse.json(
       {

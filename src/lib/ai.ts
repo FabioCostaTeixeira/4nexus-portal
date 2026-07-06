@@ -115,6 +115,49 @@ export async function reviewText(texto: string): Promise<string> {
   }
 }
 
+export type ClassifyPautaResult = {
+  category: string | null;
+  confidence: "alta" | "média" | "baixa";
+  reason?: string;
+};
+
+/** Classifica a pauta em uma das categorias ativas do portal, ou recusa se fora de escopo. */
+export async function classifyPauta(
+  texto: string,
+  categorias: string[]
+): Promise<ClassifyPautaResult> {
+  const raw = await chat([
+    {
+      role: "system",
+      content: `Você classifica pautas de notícia do portal 4Nexus (ES) em uma destas categorias: ${categorias.join(
+        ", "
+      )}.
+Responda SOMENTE com JSON: {"category": "NomeExatoDaCategoria" ou null, "confidence": "alta"|"média"|"baixa", "reason": "motivo breve em português"}.
+- category deve ser EXATAMENTE um dos nomes listados acima, ou null se a pauta não se encaixar em nenhuma.
+- Se a pauta for vaga mas plausivelmente relacionada a alguma categoria, retorne confidence "baixa" com o melhor palpite.
+- Se a pauta for claramente fora de qualquer uma dessas categorias, retorne category null e explique em reason.`,
+    },
+    { role: "user", content: texto },
+  ]);
+
+  try {
+    let jsonText = raw.trim();
+    const fence = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fence) jsonText = fence[1].trim();
+    const parsed = JSON.parse(jsonText);
+    const confidence = ["alta", "média", "baixa"].includes(parsed.confidence)
+      ? parsed.confidence
+      : "baixa";
+    return {
+      category: parsed.category ? String(parsed.category) : null,
+      confidence,
+      reason: parsed.reason ? String(parsed.reason) : undefined,
+    };
+  } catch {
+    return { category: null, confidence: "baixa", reason: "Não foi possível interpretar a pauta." };
+  }
+}
+
 function parseDraft(raw: string): AiDraftResult {
   let jsonText = raw.trim();
   // Alguns modelos envolvem em ```json ... ```

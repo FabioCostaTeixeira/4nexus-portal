@@ -17,6 +17,7 @@ enum UserRole {
 enum PostStatus {
   DRAFT
   PENDING
+  SCHEDULED
   PUBLISHED
   ARCHIVED
   REJECTED
@@ -37,6 +38,21 @@ enum AiDraftStatus {
   GENERATED
   USED
   DISCARDED
+}
+
+enum AiDraftOrigin {
+  ADMIN_PANEL
+  TELEGRAM
+}
+
+enum TelegramConversationState {
+  IDLE
+  AWAITING_CATEGORY
+  GENERATING
+  AWAITING_APPROVAL
+  AWAITING_AUTHOR
+  AWAITING_SCHEDULE
+  DONE
 }
 
 model User {
@@ -71,14 +87,15 @@ model Author {
 }
 
 model Category {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  slug        String   @unique
-  description String?
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now()) @db.Timestamptz
-  updatedAt   DateTime @updatedAt @db.Timestamptz
-  posts       Post[]
+  id                    String                 @id @default(cuid())
+  name                  String                 @unique
+  slug                  String                 @unique
+  description           String?
+  active                Boolean                @default(true)
+  createdAt             DateTime               @default(now()) @db.Timestamptz
+  updatedAt             DateTime               @updatedAt @db.Timestamptz
+  posts                 Post[]
+  telegramConversations TelegramConversation[]
 }
 
 model Tag {
@@ -92,37 +109,40 @@ model Tag {
 }
 
 model Post {
-  id              String     @id @default(cuid())
-  title           String
-  slug            String     @unique
-  summary         String?
-  content         String // markdown
-  coverImageUrl   String?
-  authorId        String
-  author          Author     @relation(fields: [authorId], references: [id])
-  categoryId      String
-  category        Category   @relation(fields: [categoryId], references: [id])
-  status          PostStatus @default(DRAFT)
-  sourceType      SourceType @default(HUMAN)
-  generatedByAi   Boolean    @default(false)
-  approvedById    String?
-  approvedBy      User?      @relation("PostApprover", fields: [approvedById], references: [id])
-  publishedAt     DateTime?  @db.Timestamptz
-  metaTitle       String?
-  metaDescription String?
-  readingTime     Int?
-  viewCount       Int        @default(0)
-  featured        Boolean    @default(false)
-  createdAt       DateTime   @default(now()) @db.Timestamptz
-  updatedAt       DateTime   @updatedAt @db.Timestamptz
-  tags            PostTag[]
-  comments        Comment[]
+  id                   String                @id @default(cuid())
+  title                String
+  slug                 String                @unique
+  summary              String?
+  content              String // markdown
+  coverImageUrl        String?
+  authorId             String
+  author               Author                @relation(fields: [authorId], references: [id])
+  categoryId           String
+  category             Category              @relation(fields: [categoryId], references: [id])
+  status               PostStatus            @default(DRAFT)
+  sourceType           SourceType            @default(HUMAN)
+  generatedByAi        Boolean               @default(false)
+  approvedById         String?
+  approvedBy           User?                 @relation("PostApprover", fields: [approvedById], references: [id])
+  publishedAt          DateTime?             @db.Timestamptz
+  scheduledAt          DateTime?             @db.Timestamptz
+  metaTitle            String?
+  metaDescription      String?
+  readingTime          Int?
+  viewCount            Int                   @default(0)
+  featured             Boolean               @default(false)
+  createdAt            DateTime              @default(now()) @db.Timestamptz
+  updatedAt            DateTime              @updatedAt @db.Timestamptz
+  tags                 PostTag[]
+  comments             Comment[]
+  telegramConversation TelegramConversation?
 
   // Coluna gerada tsvector + índice GIN — criados via SQL na migration
   // (ver prisma/migrations/*_add_fulltext_search/migration.sql)
   searchVector Unsupported("tsvector")?
 
   @@index([status, publishedAt])
+  @@index([status, scheduledAt])
   @@index([categoryId])
   @@index([authorId])
   @@index([viewCount])
@@ -163,9 +183,31 @@ model AiDraft {
   generatedSummary         String?
   generatedTags            String? // CSV
   generatedMetaDescription String?
+  coverImageUrl            String?
+  origin                   AiDraftOrigin @default(ADMIN_PANEL)
   status                   AiDraftStatus @default(GENERATED)
   reviewedById             String?
   reviewedBy               User?         @relation(fields: [reviewedById], references: [id])
   createdAt                DateTime      @default(now()) @db.Timestamptz
   updatedAt                DateTime      @updatedAt @db.Timestamptz
+
+  telegramConversation TelegramConversation?
+}
+
+model TelegramConversation {
+  id               String                    @id @default(cuid())
+  chatId           String                    @unique
+  state            TelegramConversationState @default(IDLE)
+  pautaRaw         String?
+  categoryId       String?
+  category         Category?                 @relation(fields: [categoryId], references: [id])
+  aiDraftId        String?                   @unique
+  aiDraft          AiDraft?                  @relation(fields: [aiDraftId], references: [id])
+  postId           String?                   @unique
+  post             Post?                     @relation(fields: [postId], references: [id])
+  lastBotMessageId String?
+  createdAt        DateTime                  @default(now()) @db.Timestamptz
+  updatedAt        DateTime                  @updatedAt @db.Timestamptz
+
+  @@index([state])
 }

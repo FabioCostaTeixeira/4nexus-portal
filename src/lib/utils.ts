@@ -39,6 +39,7 @@ export function formatDateTime(date: Date | string | null | undefined): string {
 export const POST_STATUS = {
   DRAFT: "Rascunho",
   PENDING: "Pendente de aprovação",
+  SCHEDULED: "Agendado",
   PUBLISHED: "Publicado",
   ARCHIVED: "Arquivado",
   REJECTED: "Rejeitado",

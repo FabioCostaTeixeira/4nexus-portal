@@ -5,27 +5,11 @@ import { redirect } from "next/navigation";
 import type { PostStatus, SourceType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireUser, can } from "@/lib/auth";
-import { slugify, readingTimeMinutes } from "@/lib/utils";
+import { readingTimeMinutes } from "@/lib/utils";
 import { generateDraft, reviewText } from "@/lib/ai";
+import { ALL_STATUSES, resolveStatusForCreate, uniqueSlug } from "@/lib/posts-service";
 
 export type SaveState = { message: string; error: boolean };
-
-const ALL_STATUSES: PostStatus[] = ["DRAFT", "PENDING", "PUBLISHED", "ARCHIVED", "REJECTED"];
-
-async function uniqueSlug(base: string, excludeId?: string) {
-  let slug = slugify(base) || "noticia";
-  let i = 1;
-  while (
-    await prisma.post.findFirst({
-      where: { slug, ...(excludeId ? { id: { not: excludeId } } : {}) },
-      select: { id: true },
-    })
-  ) {
-    i += 1;
-    slug = `${slugify(base)}-${i}`;
-  }
-  return slug;
-}
 
 export async function savePost(_prev: SaveState, formData: FormData): Promise<SaveState> {
   const session = await requireUser(["ADMIN", "EDITOR", "REDATOR"]);
@@ -50,15 +34,8 @@ export async function savePost(_prev: SaveState, formData: FormData): Promise<Sa
   }
   if (!ALL_STATUSES.includes(status)) status = "DRAFT";
 
-  // Regras de papel
-  if (session.role === "REDATOR") {
-    // Redator não publica, não arquiva, não rejeita
-    if (!["DRAFT", "PENDING"].includes(status)) status = "PENDING";
-  }
-  // Conteúdo gerado por IA nunca publica sem validação de editor/admin
-  if (generatedByAi && status === "PUBLISHED" && !can.publishPosts(session.role)) {
-    status = "PENDING";
-  }
+  // Regras de papel + regra "IA nunca publica sem aprovação" (centralizadas em posts-service)
+  status = resolveStatusForCreate({ id: session.id, role: session.role }, status, generatedByAi);
 
   let existing = null;
   if (id) {
